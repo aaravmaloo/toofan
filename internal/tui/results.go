@@ -43,6 +43,8 @@ func (m model) handleResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	m.game = game.New(m.duration, m.mode, m.lang, m.difficulty)
 	m.showingErrors = false
+	m.bots = nil
+	m.botLastTick = time.Time{}
 	m.active = screenTyping
 	return m, nil
 }
@@ -120,6 +122,12 @@ func (m model) viewResults(p theme.Palette) string {
 		out = append(out, pb)
 	} else if m.pb > 0 {
 		out = append(out, dim.Render(fmt.Sprintf("pb %.0f", m.pb)))
+	}
+
+	if len(m.bots) > 0 {
+		userProg := 1.0
+		placements := game.BotPlacements(m.bots, userProg)
+		out = append(out, "", viewBotResults(p, placements))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center, out...)
