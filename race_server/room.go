@@ -1,0 +1,193 @@
+package main
+
+import (
+	"fmt"
+	"sync"
+)
+
+type player struct {
+	client   *client
+	name     string
+	progress float64
+	wpm      float64
+	finished bool
+}
+
+type room struct {
+	id         string
+	hub        *hub
+	mu         sync.Mutex
+	players    map[*client]*player
+	maxPlayers int
+	started    bool
+	text       string
+	closed     bool
+}
+
+var roomCounter int
+var roomCounterMu sync.Mutex
+
+func newRoom(h *hub, size int) *room {
+	roomCounterMu.Lock()
+	roomCounter++
+	id := fmt.Sprintf("room-%d", roomCounter)
+	roomCounterMu.Unlock()
+
+	return &room{
+		id:         id,
+		hub:        h,
+		players:    make(map[*client]*player),
+		maxPlayers: size,
+	}
+}
+
+func (r *room) addPlayer(c *client) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.players[c] = &player{client: c, name: c.name}
+}
+
+func (r *room) removePlayer(c *client) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.players, c)
+}
+
+func (r *room) playerNames() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	names := make([]string, 0, len(r.players))
+	for _, p := range r.players {
+		names = append(names, p.name)
+	}
+	return names
+}
+
+func (r *room) broadcast(msg ServerMsg) {
+	data := marshal(msg)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for c := range r.players {
+		select {
+		case c.events <- data:
+		default:
+		}
+	}
+}
+
+func (r *room) broadcastLobby() {
+	r.broadcast(ServerMsg{
+		Type: "joined",
+		Payload: JoinMsg{
+			Room:    r.id,
+			Players: r.playerNames(),
+			Online:  r.hub.onlineCount(),
+		},
+	})
+}
+
+func (r *room) maybeStart() {
+	r.mu.Lock()
+	count := len(r.players)
+	alreadyStarted := r.started
+	maxP := r.maxPlayers
+	r.mu.Unlock()
+
+	if alreadyStarted || count < maxP {
+		return
+	}
+
+	go r.startCountdown()
+}
+
+func (r *room) startCountdown() {
+	r.mu.Lock()
+	if r.started {
+		r.mu.Unlock()
+		return
+	}
+	r.started = true
+	r.mu.Unlock()
+
+	r.broadcast(ServerMsg{
+		Type:    "countdown",
+		Payload: CountdownMsg{Seconds: 3},
+	})
+
+	r.text = generateText(40)
+
+	r.broadcast(ServerMsg{
+		Type:    "start",
+		Payload: StartMsg{Text: r.text},
+	})
+}
+
+func (r *room) updateProgress(name string, progress float64, wpm float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, p := range r.players {
+		if p.name == name {
+			p.progress = progress
+			p.wpm = wpm
+			if progress >= 1.0 {
+				p.finished = true
+			}
+			break
+		}
+	}
+
+	r.broadcastProgress()
+}
+
+func (r *room) broadcastProgress() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	players := make([]PlayerProgress, 0, len(r.players))
+	allDone := len(r.players) > 0
+	for _, p := range r.players {
+		players = append(players, PlayerProgress{
+			Name:     p.name,
+			Progress: p.progress,
+			WPM:      p.wpm,
+			Finished: p.finished,
+		})
+		if !p.finished {
+			allDone = false
+		}
+	}
+
+	// sort by progress desc
+	for i := 0; i < len(players); i++ {
+		for j := i + 1; j < len(players); j++ {
+			if players[j].Progress > players[i].Progress {
+				players[i], players[j] = players[j], players[i]
+			}
+		}
+	}
+
+	data := marshal(ServerMsg{Type: "progress", Payload: ProgressMsg{Players: players}})
+	for c := range r.players {
+		select {
+		case c.events <- data:
+		default:
+		}
+	}
+
+	if allDone {
+		finishData := marshal(ServerMsg{Type: "finish", Payload: FinishMsg{Placements: players}})
+		for c := range r.players {
+			select {
+			case c.events <- finishData:
+			default:
+			}
+		}
+	}
+}
+
+func (r *room) close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.closed = true
+}
