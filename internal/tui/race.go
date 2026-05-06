@@ -186,15 +186,16 @@ func viewBotResults(p theme.Palette, placements []game.BotPlacement) string {
 			ord = fmt.Sprintf("%dth", pl.Rank)
 		}
 
-		pct := fmt.Sprintf("%.0f%%", pl.Progress*100)
+		wpmStr := fmt.Sprintf("%.0f wpm", pl.WPM)
 
 		var line string
 		if pl.IsUser {
 			marker := hi.Render(" <")
-			line = hi.Render(fmt.Sprintf("  %-4s  %-8s  %s", ord, pl.Name, pct)) + marker
+			line = hi.Render(fmt.Sprintf("  %-4s  %-8s  %s", ord, pl.Name, wpmStr)) + marker
 		} else {
 			botStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(botColorHexes[pl.ID%len(botColorHexes)]))
-			line = dim.Render(fmt.Sprintf("  %-4s  ", ord)) + botStyle.Render(fmt.Sprintf("%-8s", pl.Name)) + dim.Render(fmt.Sprintf("  %s", pct))
+			// Add placeholder space to match the " <" marker width
+			line = dim.Render(fmt.Sprintf("  %-4s  ", ord)) + botStyle.Render(fmt.Sprintf("%-8s", pl.Name)) + dim.Render(fmt.Sprintf("  %s  ", wpmStr))
 		}
 		rows = append(rows, line)
 	}

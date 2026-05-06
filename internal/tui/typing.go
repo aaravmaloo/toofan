@@ -111,6 +111,7 @@ func (m model) handleTyping(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.pickingOnline = true
+			m.raceState = onlineActionPick
 			return m, nil
 		}
 
@@ -146,9 +147,6 @@ func (m model) viewTyping(p theme.Palette) string {
 	if m.pickingBots {
 		return m.viewBotPicker(p)
 	}
-	if m.pickingOnline {
-		return m.viewOnline(p)
-	}
 	if m.pickingLang {
 		return m.viewPicker(p)
 	}
@@ -160,6 +158,9 @@ func (m model) viewTyping(p theme.Palette) string {
 	}
 	if m.pickingDifficulty {
 		return m.viewDifficultyPicker(p)
+	}
+	if m.pickingOnline {
+		return m.viewOnline(p)
 	}
 
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
@@ -187,8 +188,8 @@ func (m model) viewTyping(p theme.Palette) string {
 
 	// build ghost cursor positions from bots
 	ghosts := make(map[int]lipgloss.Style)
+	textLen := len(m.game.Text())
 	if len(m.bots) > 0 {
-		textLen := len(m.game.Text())
 		for _, b := range m.bots {
 			pos := int(b.Progress * float64(textLen))
 			if pos >= textLen {
@@ -197,6 +198,21 @@ func (m model) viewTyping(p theme.Palette) string {
 			if pos >= 0 {
 				botColor := lipgloss.Color(botColorHexes[b.ID%len(botColorHexes)])
 				ghosts[pos] = lipgloss.NewStyle().Foreground(botColor).Faint(true)
+			}
+		}
+	} else if m.raceState == onlineRacing && len(m.racePlayers) > 0 {
+		for _, pl := range m.racePlayers {
+			if pl.IsUser {
+				continue
+			}
+			pos := int(pl.Progress * float64(textLen))
+			if pos >= textLen {
+				pos = textLen - 1
+			}
+			if pos >= 0 {
+				colorIdx := stringToColorIndex(pl.Name)
+				playerColor := lipgloss.Color(botColorHexes[colorIdx])
+				ghosts[pos] = lipgloss.NewStyle().Foreground(playerColor).Faint(true)
 			}
 		}
 	}
@@ -305,4 +321,12 @@ func (m model) viewHelp(p theme.Palette) string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func stringToColorIndex(s string) int {
+	var sum int
+	for _, r := range s {
+		sum += int(r)
+	}
+	return sum % len(botColorHexes)
 }

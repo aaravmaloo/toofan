@@ -28,9 +28,14 @@ type RacePlayer struct {
 }
 
 type LobbyPayload struct {
-	Room    string   `json:"room"`
-	Players []string `json:"players"`
-	Online  int      `json:"online"`
+	Room       string   `json:"room"`
+	Players    []string `json:"players"`
+	Online     int      `json:"online"`
+	Difficulty string   `json:"difficulty"`
+	Mode       string   `json:"mode"`
+	Lang       string   `json:"lang"`
+	Duration   int      `json:"duration"`
+	IsPrivate  bool     `json:"is_private"`
 }
 
 type CountdownPayload struct {
@@ -38,7 +43,11 @@ type CountdownPayload struct {
 }
 
 type StartPayload struct {
-	Text string `json:"text"`
+	Text       string `json:"text"`
+	Difficulty string `json:"difficulty"`
+	Mode       string `json:"mode"`
+	Lang       string `json:"lang"`
+	Duration   int    `json:"duration"`
 }
 
 type ProgressPayload struct {
@@ -77,8 +86,19 @@ func NewRaceClient(serverURL, username string) *RaceClient {
 	}
 }
 
-func (c *RaceClient) Join(size int) error {
-	url := fmt.Sprintf("%s/race/join?name=%s&size=%d", c.serverURL, c.name, size)
+func (c *RaceClient) Join(roomID, pin string, isCreate bool, size int, difficulty, mode, lang string, duration int) error {
+	url := fmt.Sprintf("%s/race/join?name=%s", c.serverURL, c.name)
+	if roomID != "" {
+		url += "&room=" + roomID
+	}
+	if pin != "" {
+		url += "&pin=" + pin
+	}
+	if isCreate {
+		url += "&is_create=true"
+		url += fmt.Sprintf("&size=%d&difficulty=%s&mode=%s&lang=%s&duration=%d", size, difficulty, mode, lang, duration)
+	}
+
 	resp, err := c.client.Get(url)
 	if err != nil {
 		return fmt.Errorf("join failed: %w", err)
@@ -145,8 +165,7 @@ func (c *RaceClient) SendProgress(progress float64, wpm float64) error {
 	}
 	data, _ := json.Marshal(body)
 
-	ctx := c.client
-	resp, err := ctx.Post(c.serverURL+"/race/progress", "application/json", bytes.NewReader(data))
+	resp, err := c.client.Post(c.serverURL+"/race/progress", "application/json", bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
