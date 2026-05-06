@@ -24,7 +24,7 @@ _Practice with english words or real code snippets. No browser, no account, ever
 - **Error Review:** See exactly which words you mistyped after every test.
 - **Ranks:** Automated progression system based on your typing speed.
 - **Offline & Local:** No browser, no account, and zero tracking. All data stays on your machine (except for real-time stats shared during multiplayer races).
-- **Data Collection in multiplayer:** While playing multiplayer, to make sure you have a smooth experience, we collect only the username, IP address (required for preventing multiple multiplayer sessions for the same user), room size choice, progress and your WPM. We DO NOT collect history, PBs, config, keystrokes, or anything except the above listed. Our commitment to privacy is absolute.  
+- **Data Collection in multiplayer:** While playing multiplayer, to make sure you have a smooth experience, we collect only the username, IP address (required for preventing multiple multiplayer sessions for the same user), room size choice, progress and your WPM. We DO NOT collect history, PBs, config, keystrokes, or anything except the above listed. Our commitment to privacy is absolute.
 
 <p align="center">
   <img src="assets/code-snippets-grid.png" width="48%" title="Real Code Snippets" alt="Real Code Snippets" />
@@ -173,8 +173,8 @@ We're always looking to add more. If your favorite programming language isn't su
 - [x] Proper documentation for AI and contributors
 - [ ] More language support (python, rust, c, typescript, etc.)
 - [x] Difficulty levels for english words
-- [ ] AUR, Homebrew, Nix packages
-- [ ] Fix top pane alignment to match bottom panes in profile
+- [ ] AUR, Homebrew, Nix packages, Fedora & Ubuntu repos
+- [x] Fix top pane alignment to match bottom panes in profile
 
 ## Contributing
 
@@ -199,3 +199,4 @@ If you're using an AI coding assistant, read [`AGENTS.md`](AGENTS.md) first.
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=vyrx-dev/toofan&type=date&legend=top-left" />
  </picture>
 </a>
+<div align="ce
