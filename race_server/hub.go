@@ -120,14 +120,17 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 		fmt.Sscanf(r.URL.Query().Get("size"), "%d", &size)
 		dur := 30
 		fmt.Sscanf(r.URL.Query().Get("duration"), "%d", &dur)
+		autoStart := r.URL.Query().Get("auto_start") != "false"
 
 		rm = newRoom(h, roomID, pin, size,
 			r.URL.Query().Get("difficulty"),
 			r.URL.Query().Get("mode"),
 			r.URL.Query().Get("lang"),
-			dur)
+			dur,
+			name,
+			autoStart)
 		h.rooms[roomID] = rm
-		log.Printf("create lobby room=%s owner=%s private=%t", roomID, name, pin != "")
+		log.Printf("create lobby room=%s owner=%s private=%t auto_start=%t", roomID, name, pin != "", autoStart)
 	} else if roomID != "" {
 		rm = h.rooms[roomID]
 		if rm == nil {
@@ -164,7 +167,7 @@ func (h *hub) serveJoin(w http.ResponseWriter, r *http.Request) {
 		if rm == nil {
 			roomID = generateRoomID()
 			// default quick queue room
-			rm = newRoom(h, roomID, "", 2, "medium", "words", "english", 30)
+			rm = newRoom(h, roomID, "", 2, "medium", "words", "english", 30, name, true)
 			h.rooms[roomID] = rm
 			log.Printf("auto-created queue room=%s no_rooms=%t", roomID, noRooms)
 		}

@@ -32,6 +32,9 @@ type joinResultMsg struct {
 }
 
 type onlineResultsDoneMsg struct{}
+type startRaceResultMsg struct {
+	err error
+}
 
 var onlineSizes = []int{2, 3, 4, 5, 6}
 var onlineActions = []string{"No Rooms (Quick Match)", "Join Room", "Create Room"}
@@ -54,6 +57,11 @@ func (m model) handleOnline(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if msg.String() == "esc" {
 			m.disconnectRace()
 			return m, nil
+		}
+		if m.raceState == onlineLobby && (msg.String() == "s" || msg.String() == "enter") {
+			if m.raceClient != nil && m.isRaceHost && !m.onlineAutoStart && m.raceCanStart {
+				return m, m.startRaceCmd()
+			}
 		}
 	case onlineResults:
 		if msg.String() == "esc" || msg.String() == "enter" {
@@ -119,7 +127,7 @@ func (m model) getOnlineConfigOptions() []string {
 	if m.mode == "code" {
 		opts = append(opts, "Language")
 	}
-	opts = append(opts, "Difficulty", "Duration", "Continue")
+	opts = append(opts, "Difficulty", "Duration", "Start Policy", "Continue")
 	return opts
 }
 
@@ -142,6 +150,7 @@ func (m model) handleConfigPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.mode = "code"
 			} else {
 				m.mode = "words"
+				m.lang = "english"
 			}
 			// Reset cursor if it was on a hidden option
 			if m.onlineConfigCur >= len(m.getOnlineConfigOptions()) {
@@ -153,6 +162,8 @@ func (m model) handleConfigPicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.pickingDifficulty = true
 		case "Duration":
 			m.duration = nextDur(m.duration)
+		case "Start Policy":
+			m.onlineAutoStart = !m.onlineAutoStart
 		case "Continue":
 			m.raceState = onlineUsername
 		}
@@ -273,6 +284,9 @@ func (m *model) disconnectRace() {
 	m.raceText = ""
 	m.onlineRoomIDBuf = ""
 	m.onlinePinBuf = ""
+	m.isRaceHost = false
+	m.raceHostName = ""
+	m.raceCanStart = false
 }
 
 func (m model) listenRaceMsg() tea.Cmd {
@@ -291,8 +305,17 @@ func (m model) listenRaceMsg() tea.Cmd {
 
 func (m model) joinRaceCmd() tea.Cmd {
 	return func() tea.Msg {
-		err := m.raceClient.Join(m.onlineRoomID, m.onlinePin, m.isCreating, m.onlineSize, m.difficulty, m.mode, m.lang, m.duration)
+		err := m.raceClient.Join(m.onlineRoomID, m.onlinePin, m.isCreating, m.onlineSize, m.difficulty, m.mode, m.lang, m.duration, m.onlineAutoStart)
 		return joinResultMsg{err: err}
+	}
+}
+
+func (m model) startRaceCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.raceClient == nil {
+			return startRaceResultMsg{err: fmt.Errorf("not connected")}
+		}
+		return startRaceResultMsg{err: m.raceClient.StartRace()}
 	}
 }
 
@@ -310,12 +333,20 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		m.raceClient.SetRoom(payload.Room)
 		m.onlineRoomID = payload.Room
 		m.onlineCount = payload.Online
+		m.raceHostName = payload.Host
+		m.onlineAutoStart = payload.AutoStart
+		m.raceCanStart = payload.CanStart
+		m.isRaceHost = payload.Host == m.username
 		
 		// sync settings from creator
 		if !m.isCreating {
 			m.difficulty = payload.Difficulty
 			m.mode = payload.Mode
-			m.lang = payload.Lang
+			if payload.Mode == "words" {
+				m.lang = "english"
+			} else {
+				m.lang = payload.Lang
+			}
 			m.duration = payload.Duration
 		}
 
@@ -358,7 +389,11 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		// sync final settings
 		m.difficulty = payload.Difficulty
 		m.mode = payload.Mode
-		m.lang = payload.Lang
+		if payload.Mode == "words" {
+			m.lang = "english"
+		} else {
+			m.lang = payload.Lang
+		}
 		m.duration = payload.Duration
 		
 		m.game.Reset(m.mode, m.lang, m.difficulty)
@@ -377,6 +412,7 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 			}
 		}
 		m.racePlayers = payload.Players
+		m.raceCanStart = false
 
 	case "finish":
 		// Only transition to results if we were actually part of the race
@@ -422,6 +458,14 @@ func (m model) handleJoinResult(msg joinResultMsg) (model, tea.Cmd) {
 	}
 	m.raceState = onlineLobby
 	return m, m.listenRaceMsg()
+}
+
+func (m model) handleStartRaceResult(msg startRaceResultMsg) (model, tea.Cmd) {
+	if msg.err != nil {
+		m.message = msg.err.Error()
+		m.msgTime = time.Now()
+	}
+	return m, nil
 }
 
 func (m model) viewOnline(p theme.Palette) string {
@@ -478,6 +522,12 @@ func (m model) viewConfig(p theme.Palette) string {
 			setting = m.difficulty
 		case "Duration":
 			setting = fmt.Sprintf("%ds", m.duration)
+		case "Start Policy":
+			if m.onlineAutoStart {
+				setting = "auto when full"
+			} else {
+				setting = "host starts"
+			}
 		case "Continue":
 			setting = ""
 		}
@@ -571,11 +621,16 @@ func (m model) viewLobby(p theme.Palette) string {
 		roomLabel += dim.Render(" (private)")
 	}
 
+	modeInfo := fmt.Sprintf("%s · %s · %ds", m.mode, m.difficulty, m.duration)
+	if m.mode == "code" {
+		modeInfo = fmt.Sprintf("%s · %s · %s · %ds", m.mode, m.lang, m.difficulty, m.duration)
+	}
+
 	lines := []string{
 		hi.Render("lobby"),
 		roomLabel,
 		"",
-		dim.Render(fmt.Sprintf("%s · %s · %s · %ds", m.mode, m.lang, m.difficulty, m.duration)),
+		dim.Render(modeInfo),
 		"",
 		dim.Render("waiting for players..."),
 		"",
@@ -594,6 +649,18 @@ func (m model) viewLobby(p theme.Palette) string {
 			}
 			lines = append(lines, prefix+val.Render(pl.Name))
 		}
+	}
+
+	policy := "autostart: when room is full"
+	if !m.onlineAutoStart {
+		policy = "autostart: off (host starts)"
+	}
+	lines = append(lines, "", dim.Render(policy))
+	if m.raceHostName != "" {
+		lines = append(lines, dim.Render("host: "+m.raceHostName))
+	}
+	if m.isRaceHost && !m.onlineAutoStart && m.raceCanStart {
+		lines = append(lines, "", hi.Render("press s to start race"))
 	}
 
 	lines = append(lines, "", dim.Render("esc to leave"))

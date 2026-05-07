@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -30,9 +31,11 @@ type room struct {
 	mode       string
 	lang       string
 	duration   int
+	host       string
+	autoStart  bool
 }
 
-func newRoom(h *hub, id string, pin string, size int, diff, mode, lang string, dur int) *room {
+func newRoom(h *hub, id string, pin string, size int, diff, mode, lang string, dur int, host string, autoStart bool) *room {
 	rm := &room{
 		id:         id,
 		pin:        pin,
@@ -43,8 +46,10 @@ func newRoom(h *hub, id string, pin string, size int, diff, mode, lang string, d
 		mode:       mode,
 		lang:       lang,
 		duration:   dur,
+		host:       host,
+		autoStart:  autoStart,
 	}
-	log.Printf("room created id=%s private=%t size=%d mode=%s lang=%s difficulty=%s duration=%ds", id, pin != "", size, mode, lang, diff, dur)
+	log.Printf("room created id=%s private=%t size=%d mode=%s lang=%s difficulty=%s duration=%ds host=%s auto_start=%t", id, pin != "", size, mode, lang, diff, dur, host, autoStart)
 	return rm
 }
 
@@ -59,6 +64,16 @@ func (r *room) removePlayer(c *client) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.players, c)
+	if r.host == c.name {
+		r.host = ""
+		for _, p := range r.players {
+			r.host = p.name
+			break
+		}
+		if r.host != "" {
+			log.Printf("room=%s host_reassigned host=%s", r.id, r.host)
+		}
+	}
 	log.Printf("room=%s player_leave name=%s players=%d/%d", r.id, c.name, len(r.players), r.maxPlayers)
 }
 
@@ -100,6 +115,9 @@ func (r *room) broadcastLobby() {
 			Room:       r.id,
 			Players:    r.playerNamesLocked(),
 			Online:     r.hub.onlineCount(),
+			Host:       r.host,
+			AutoStart:  r.autoStart,
+			CanStart:   r.canStartLocked(),
 			Difficulty: r.difficulty,
 			Mode:       r.mode,
 			Lang:       r.lang,
@@ -127,13 +145,36 @@ func (r *room) maybeStart() {
 	count := len(r.players)
 	alreadyStarted := r.started
 	maxP := r.maxPlayers
+	autoStart := r.autoStart
 	r.mu.Unlock()
 
-	if alreadyStarted || count < maxP {
+	if !autoStart || alreadyStarted || count < maxP {
 		return
 	}
 
 	go r.startCountdown()
+}
+
+func (r *room) canStartLocked() bool {
+	if r.started || r.counting {
+		return false
+	}
+	return len(r.players) >= 2
+}
+
+func (r *room) requestStart(name string) error {
+	r.mu.Lock()
+	if name != r.host {
+		r.mu.Unlock()
+		return fmt.Errorf("only host can start")
+	}
+	if !r.canStartLocked() {
+		r.mu.Unlock()
+		return fmt.Errorf("not enough players to start")
+	}
+	r.mu.Unlock()
+	go r.startCountdown()
+	return nil
 }
 
 func (r *room) startCountdown() {

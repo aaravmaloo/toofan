@@ -31,6 +31,9 @@ type LobbyPayload struct {
 	Room       string   `json:"room"`
 	Players    []string `json:"players"`
 	Online     int      `json:"online"`
+	Host       string   `json:"host"`
+	AutoStart  bool     `json:"auto_start"`
+	CanStart   bool     `json:"can_start"`
 	Difficulty string   `json:"difficulty"`
 	Mode       string   `json:"mode"`
 	Lang       string   `json:"lang"`
@@ -89,7 +92,7 @@ func NewRaceClient(serverURL, username string) *RaceClient {
 	}
 }
 
-func (c *RaceClient) Join(roomID, pin string, isCreate bool, size int, difficulty, mode, lang string, duration int) error {
+func (c *RaceClient) Join(roomID, pin string, isCreate bool, size int, difficulty, mode, lang string, duration int, autoStart bool) error {
 	url := fmt.Sprintf("%s/race/join?name=%s", c.serverURL, c.name)
 	if !isCreate && roomID == "" {
 		url += "&no_rooms=true"
@@ -102,7 +105,7 @@ func (c *RaceClient) Join(roomID, pin string, isCreate bool, size int, difficult
 	}
 	if isCreate {
 		url += "&is_create=true"
-		url += fmt.Sprintf("&size=%d&difficulty=%s&mode=%s&lang=%s&duration=%d", size, difficulty, mode, lang, duration)
+		url += fmt.Sprintf("&size=%d&difficulty=%s&mode=%s&lang=%s&duration=%d&auto_start=%t", size, difficulty, mode, lang, duration, autoStart)
 	}
 
 	resp, err := c.client.Get(url)
@@ -183,6 +186,37 @@ func (c *RaceClient) SetRoom(room string) {
 	c.mu.Lock()
 	c.room = room
 	c.mu.Unlock()
+}
+
+func (c *RaceClient) StartRace() error {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	room := c.room
+	name := c.name
+	c.mu.Unlock()
+
+	body := map[string]string{
+		"name": name,
+		"room": room,
+	}
+	data, _ := json.Marshal(body)
+	resp, err := c.client.Post(c.serverURL+"/race/start", "application/json", bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		msg := strings.TrimSpace(string(b))
+		if msg == "" {
+			msg = fmt.Sprintf("status %d", resp.StatusCode)
+		}
+		return fmt.Errorf("start failed: %s", msg)
+	}
+	return nil
 }
 
 func (c *RaceClient) Close() {
