@@ -201,12 +201,6 @@ We're always looking to add more. If your favorite programming language isn't su
 
 - Huge thanks to [@aaravmaloo](https://github.com/aaravmaloo) for creating online mode and fully implementing bots and online mode.
 
-<a href="https://github.com/vyrx-dev/toofan/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=vyrx-dev/toofan" />
-</a>
-
-Made with [contrib.rocks](https://contrib.rocks).
-
 (As a contributor, to get your name to mentions, please create a PR along with the contributions you made.)
 ## Contributing
 
