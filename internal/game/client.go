@@ -36,6 +36,9 @@ type LobbyPayload struct {
 	Lang       string   `json:"lang"`
 	Duration   int      `json:"duration"`
 	IsPrivate  bool     `json:"is_private"`
+	State      string   `json:"state"`
+	Text       string   `json:"text,omitempty"`
+	TimeLeft   int      `json:"time_left,omitempty"`
 }
 
 type CountdownPayload struct {

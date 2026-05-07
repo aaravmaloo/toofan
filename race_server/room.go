@@ -21,6 +21,8 @@ type room struct {
 	players    map[*client]*player
 	maxPlayers int
 	started    bool
+	counting   bool
+	startTime  time.Time
 	text       string
 	closed     bool
 	difficulty string
@@ -55,15 +57,7 @@ func (r *room) removePlayer(c *client) {
 	delete(r.players, c)
 }
 
-func (r *room) playerNames() []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	names := make([]string, 0, len(r.players))
-	for _, p := range r.players {
-		names = append(names, p.name)
-	}
-	return names
-}
+
 
 func (r *room) broadcast(msg ServerMsg) {
 	data := marshal(msg)
@@ -78,19 +72,49 @@ func (r *room) broadcast(msg ServerMsg) {
 }
 
 func (r *room) broadcastLobby() {
-	r.broadcast(ServerMsg{
+	r.mu.Lock()
+	state := "lobby"
+	if r.started {
+		state = "racing"
+	} else if r.counting {
+		state = "countdown"
+	}
+
+	timeLeft := 0
+	if r.started && r.duration > 0 {
+		elapsed := time.Since(r.startTime)
+		timeLeft = r.duration - int(elapsed.Seconds())
+		if timeLeft < 0 {
+			timeLeft = 0
+		}
+	}
+
+	msg := ServerMsg{
 		Type: "joined",
 		Payload: JoinMsg{
 			Room:       r.id,
-			Players:    r.playerNames(),
+			Players:    r.playerNamesLocked(),
 			Online:     r.hub.onlineCount(),
 			Difficulty: r.difficulty,
 			Mode:       r.mode,
 			Lang:       r.lang,
 			Duration:   r.duration,
 			IsPrivate:  r.pin != "",
+			State:      state,
+			Text:       r.text,
+			TimeLeft:   timeLeft,
 		},
-	})
+	}
+	r.mu.Unlock()
+	r.broadcast(msg)
+}
+
+func (r *room) playerNamesLocked() []string {
+	names := make([]string, 0, len(r.players))
+	for _, p := range r.players {
+		names = append(names, p.name)
+	}
+	return names
 }
 
 func (r *room) maybeStart() {
@@ -109,11 +133,11 @@ func (r *room) maybeStart() {
 
 func (r *room) startCountdown() {
 	r.mu.Lock()
-	if r.started {
+	if r.started || r.counting {
 		r.mu.Unlock()
 		return
 	}
-	r.started = true
+	r.counting = true
 	r.mu.Unlock()
 
 	r.broadcast(ServerMsg{
@@ -123,7 +147,12 @@ func (r *room) startCountdown() {
 
 	time.Sleep(3 * time.Second)
 
-	r.text = generateText(40)
+	r.mu.Lock()
+	r.text = generateText(r.mode, r.lang, r.difficulty)
+	r.started = true
+	r.counting = false
+	r.startTime = time.Now()
+	r.mu.Unlock()
 
 	r.broadcast(ServerMsg{
 		Type:    "start",

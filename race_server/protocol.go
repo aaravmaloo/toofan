@@ -8,14 +8,17 @@ type ServerMsg struct {
 }
 
 type JoinMsg struct {
-	Room       string `json:"room"`
+	Room       string   `json:"room"`
 	Players    []string `json:"players"`
-	Online     int    `json:"online"`
-	Difficulty string `json:"difficulty"`
-	Mode       string `json:"mode"`
-	Lang       string `json:"lang"`
-	Duration   int    `json:"duration"`
-	IsPrivate  bool   `json:"is_private"`
+	Online     int      `json:"online"`
+	Difficulty string   `json:"difficulty"`
+	Mode       string   `json:"mode"`
+	Lang       string   `json:"lang"`
+	Duration   int      `json:"duration"`
+	IsPrivate  bool     `json:"is_private"`
+	State      string   `json:"state"`
+	Text       string   `json:"text,omitempty"`
+	TimeLeft   int      `json:"time_left,omitempty"`
 }
 
 type CountdownMsg struct {

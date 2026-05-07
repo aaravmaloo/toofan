@@ -2,40 +2,155 @@ package main
 
 import (
 	"embed"
+	"io/fs"
 	"math/rand"
 	"strings"
 )
 
-//go:embed data/english/*.txt
+//go:embed data/**/*
 var dataFS embed.FS
 
-var wordList []string
+type Snippet struct {
+	Topic   string
+	Content string
+}
 
-func init() {
-	files := []string{"easy.txt", "medium.txt", "hard.txt"}
-	for _, f := range files {
-		content, err := dataFS.ReadFile("data/english/" + f)
-		if err != nil {
+type langData struct {
+	Name        string
+	EasyWords   []string
+	MediumWords []string
+	HardWords   []string
+	AllWords    []string
+	Snippets    []Snippet
+}
+
+var languages = map[string]*langData{}
+
+func parseLesson(content string) []Snippet {
+	lines := strings.Split(strings.TrimSpace(content), "\n")
+	var topic string
+	codeStart := 0
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
 			continue
 		}
-		words := strings.Fields(string(content))
-		for _, w := range words {
-			w = strings.TrimSpace(w)
-			if w != "" {
-				wordList = append(wordList, w)
+		isComment := strings.HasPrefix(trimmed, "//") ||
+			strings.HasPrefix(trimmed, "#") ||
+			strings.HasPrefix(trimmed, "--")
+		if !isComment {
+			break
+		}
+		if topic == "" {
+			for _, prefix := range []string{"// Topic: ", "# Topic: ", "-- Topic: "} {
+				if strings.HasPrefix(trimmed, prefix) {
+					topic = strings.TrimSpace(strings.TrimPrefix(trimmed, prefix))
+				}
 			}
 		}
+		codeStart = i + 1
 	}
 
-	if len(wordList) == 0 {
-		wordList = []string{"the", "quick", "brown", "fox", "jumps", "over", "lazy", "dog"}
+	for codeStart < len(lines) && strings.TrimSpace(lines[codeStart]) == "" {
+		codeStart++
+	}
+
+	codeText := strings.TrimSpace(strings.Join(lines[codeStart:], "\n"))
+	if len(codeText) == 0 {
+		return nil
+	}
+	if topic == "" {
+		topic = "Code Snippet"
+	}
+	return []Snippet{{Topic: topic, Content: codeText}}
+}
+
+func init() {
+	entries, err := fs.ReadDir(dataFS, "data")
+	if err != nil {
+		return
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		ld := &langData{Name: name}
+
+		if raw, err := fs.ReadFile(dataFS, "data/"+name+"/easy.txt"); err == nil {
+			ld.EasyWords = strings.Fields(string(raw))
+			ld.AllWords = append(ld.AllWords, ld.EasyWords...)
+		}
+		if raw, err := fs.ReadFile(dataFS, "data/"+name+"/medium.txt"); err == nil {
+			ld.MediumWords = strings.Fields(string(raw))
+			ld.AllWords = append(ld.AllWords, ld.MediumWords...)
+		}
+		if raw, err := fs.ReadFile(dataFS, "data/"+name+"/hard.txt"); err == nil {
+			ld.HardWords = strings.Fields(string(raw))
+			ld.AllWords = append(ld.AllWords, ld.HardWords...)
+		}
+
+		// Look for snippets directly in the language directory
+		files, _ := fs.ReadDir(dataFS, "data/"+name)
+		for _, f := range files {
+			if f.IsDir() || strings.HasSuffix(f.Name(), ".txt") {
+				continue
+			}
+			if raw, err := fs.ReadFile(dataFS, "data/"+name+"/"+f.Name()); err == nil {
+				snips := parseLesson(string(raw))
+				ld.Snippets = append(ld.Snippets, snips...)
+			}
+		}
+
+		if len(ld.AllWords) > 0 || len(ld.Snippets) > 0 {
+			languages[name] = ld
+		}
 	}
 }
 
-func generateText(count int) string {
+func generateText(mode, lang, difficulty string) string {
+	ld, ok := languages[lang]
+	if !ok {
+		ld = languages["english"]
+	}
+	if ld == nil {
+		return "the quick brown fox jumps over the lazy dog"
+	}
+
+	if mode == "code" && len(ld.Snippets) > 0 {
+		s := ld.Snippets[rand.Intn(len(ld.Snippets))]
+		return s.Content
+	}
+
+	var pool []string
+	switch difficulty {
+	case "easy":
+		pool = ld.EasyWords
+	case "medium":
+		pool = ld.MediumWords
+	case "hard":
+		pool = ld.HardWords
+	}
+
+	if len(pool) == 0 {
+		pool = ld.AllWords
+	}
+	if len(pool) == 0 {
+		return "the quick brown fox jumps over the lazy dog"
+	}
+
+	count := 40
+	if difficulty == "hard" {
+		count = 30
+	} else if difficulty == "easy" {
+		count = 50
+	}
+
 	res := make([]string, count)
 	for i := range res {
-		res[i] = wordList[rand.Intn(len(wordList))]
+		res[i] = pool[rand.Intn(len(pool))]
 	}
 	return strings.Join(res, " ")
 }

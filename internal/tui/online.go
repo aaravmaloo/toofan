@@ -296,7 +296,9 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 	switch msg.Type {
 	case "joined":
 		var payload game.LobbyPayload
-		json.Unmarshal(msg.Payload, &payload)
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			return m, nil
+		}
 		m.raceClient.SetRoom(payload.Room)
 		m.onlineRoomID = payload.Room
 		m.onlineCount = payload.Online
@@ -317,7 +319,21 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 			}
 		}
 		
-		m.raceState = onlineLobby
+		// sync current state
+		switch payload.State {
+		case "countdown":
+			m.raceState = onlineCountdown
+		case "racing":
+			m.raceText = payload.Text
+			m.game.Reset(m.mode, m.lang, m.difficulty)
+			if m.raceText != "" {
+				m.game.SetText(m.raceText)
+			}
+			m.raceState = onlineRacing
+			m.pickingOnline = false
+		default:
+			m.raceState = onlineLobby
+		}
 
 	case "countdown":
 		var payload game.CountdownPayload
@@ -355,6 +371,11 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		m.racePlayers = payload.Players
 
 	case "finish":
+		// Only transition to results if we were actually part of the race
+		if m.raceState != onlineRacing && m.raceState != onlineCountdown {
+			return m, m.listenRaceMsg()
+		}
+
 		var payload game.FinishPayload
 		json.Unmarshal(msg.Payload, &payload)
 		for i := range payload.Placements {
