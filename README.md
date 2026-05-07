@@ -108,23 +108,28 @@ Everything lives in `~/.config/toofan/` as plain text files:
 <details>
 <summary>Can I backup my data?</summary>
 
+Yes. Press `ctrl+s` to save a backup and `ctrl+r` to restore from one. Backups are saved to `~/.config/toofan/backups/` and can be moved between machines.
+
+</details>
+
+<details>
 <summary>Does online mode require account?</summary>
 
-<details>
-No. The online mode only requires a username that will uniquely identify you across the server. It does not require any account or registration.
+No. Online mode only requires a username that uniquely identifies you across the server. No account or registration is required.
 
 </details>
-<summary>What data is collected in online mode</summary>
+
 <details>
-Only IP, room size choice, progress, your wpm, and your username is collected during online mode. Each of the above is used to exchange information between clients and the IP is used to log join and leave events. Absolutely no data is stored on our servers.
+<summary>What data is collected in online mode?</summary>
+
+Only IP, room size choice, progress, your WPM, and your username are used during online mode. This data is used to exchange information between clients and log join/leave events. No history, PBs, config, or keystrokes are stored on the server.
+
 </details>
 
-<summary>Does playing against bots require internet connection</summary>
 <details>
-No. All bots are run locally on your machine. Only the multiplayer mode requires an internet connection.
-</details>
+<summary>Does playing against bots require internet connection?</summary>
 
-Yes. Press `ctrl+s` to save a backup and `ctrl+r` to restore from one. Backups are saved to `~/.config/toofan/backups/` and can be moved between machines.
+No. All bots run locally on your machine. Only multiplayer mode requires internet.
 
 </details>
 
@@ -226,4 +231,3 @@ If you're using an AI coding assistant, read [`AGENTS.md`](AGENTS.md) first.
    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=vyrx-dev/toofan&type=date&legend=top-left" />
  </picture>
 </a>
-<div align="ce
