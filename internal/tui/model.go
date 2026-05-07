@@ -161,9 +161,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						game.SavePB(m.duration, m.mode, m.result.WPM)
 					}
 
-					if m.raceState != onlineRacing {
-						m.active = screenResults
+					if m.raceState == onlineRacing {
+						m.raceState = onlineResults
 					}
+					m.active = screenResults
 					m.finishedAt = time.Now()
 				}
 			}

@@ -200,7 +200,7 @@ func (m model) viewTyping(p theme.Palette) string {
 				ghosts[pos] = lipgloss.NewStyle().Foreground(botColor).Faint(true)
 			}
 		}
-	} else if m.raceState == onlineRacing && len(m.racePlayers) > 0 {
+	} else if m.raceClient != nil && len(m.racePlayers) > 0 {
 		for _, pl := range m.racePlayers {
 			if pl.IsUser {
 				continue
@@ -251,31 +251,29 @@ func (m model) viewTyping(p theme.Palette) string {
 	out = append(out, text)
 
 	// progress bar when typing
-	if m.game.Started() {
-		if m.raceState == onlineRacing && len(m.racePlayers) > 0 {
-			out = append(out, "", viewOnlineRaceBar(p, m.racePlayers, textWidth-4))
-		} else if len(m.bots) > 0 {
-			userProg := 0.0
-			if len(m.game.Text()) > 0 {
-				userProg = float64(len(m.game.Input())) / float64(len(m.game.Text()))
-			}
-			out = append(out, "", viewRaceBar(p, m.bots, userProg, textWidth-4))
-		} else {
-			ratio := min(m.game.Stats().WPM/200.0, 1.0)
-			if m.game.Duration() > 0 {
-				ratio = min(float64(m.game.TimeLeft())/float64(m.game.Duration()), 1.0)
-				ratio = 1.0 - ratio
-			} else {
-				if len(m.game.Text()) > 0 {
-					ratio = min(float64(len(m.game.Input()))/float64(len(m.game.Text())), 1.0)
-				}
-			}
-			barWidth := textWidth - 4
-			filled := int(ratio * float64(barWidth))
-			bar := lipgloss.NewStyle().Foreground(p.Accent).Render(strings.Repeat("━", filled)) +
-				lipgloss.NewStyle().Foreground(p.Foreground).Render(strings.Repeat("─", barWidth-filled))
-			out = append(out, "", bar)
+	if m.raceClient != nil && len(m.racePlayers) > 0 {
+		out = append(out, "", viewOnlineRaceBar(p, m.racePlayers, textWidth-4))
+	} else if len(m.bots) > 0 {
+		userProg := 0.0
+		if len(m.game.Text()) > 0 {
+			userProg = float64(len(m.game.Input())) / float64(len(m.game.Text()))
 		}
+		out = append(out, "", viewRaceBar(p, m.bots, userProg, textWidth-4))
+	} else if m.game.Started() {
+		ratio := min(m.game.Stats().WPM/200.0, 1.0)
+		if m.game.Duration() > 0 {
+			ratio = min(float64(m.game.TimeLeft())/float64(m.game.Duration()), 1.0)
+			ratio = 1.0 - ratio
+		} else {
+			if len(m.game.Text()) > 0 {
+				ratio = min(float64(len(m.game.Input()))/float64(len(m.game.Text())), 1.0)
+			}
+		}
+		barWidth := textWidth - 4
+		filled := int(ratio * float64(barWidth))
+		bar := lipgloss.NewStyle().Foreground(p.Accent).Render(strings.Repeat("━", filled)) +
+			lipgloss.NewStyle().Foreground(p.Foreground).Render(strings.Repeat("─", barWidth-filled))
+		out = append(out, "", bar)
 	} else {
 		var modeLabel string
 		if m.mode == "code" {

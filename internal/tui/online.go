@@ -561,6 +561,14 @@ func (m model) viewOnlineResults(p theme.Palette) string {
 	dim := lipgloss.NewStyle().Foreground(p.Foreground)
 	hi := lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
 
+	if len(m.racePlayers) == 0 {
+		return lipgloss.JoinVertical(lipgloss.Center,
+			"",
+			hi.Render("race finished"),
+			"",
+			dim.Render("waiting for server results..."),
+		)
+	}
 
 	ordinals := []string{"", "1st", "2nd", "3rd", "4th", "5th", "6th"}
 
@@ -577,7 +585,8 @@ func (m model) viewOnlineResults(p theme.Palette) string {
 		wpmStr := fmt.Sprintf("%.0f wpm", pl.WPM)
 		var row string
 		if pl.IsUser {
-			row = hi.Render(fmt.Sprintf("  %-4s  %-12s  %s", ord, pl.Name, wpmStr)) + hi.Render(" <")
+			marker := hi.Render(" <")
+			row = hi.Render(fmt.Sprintf("  %-4s  %-12s  %s", ord, pl.Name, wpmStr)) + marker
 		} else {
 			colorIdx := stringToColorIndex(pl.Name)
 			playerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(botColorHexes[colorIdx]))
@@ -586,9 +595,15 @@ func (m model) viewOnlineResults(p theme.Palette) string {
 		rows = append(rows, row)
 	}
 
+	title := "race results"
+	// If the race is still technically "ongoing" (we finished locally), show that
+	if m.raceClient != nil && m.raceState != onlineResults {
+		title = "race finished (waiting for others)"
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Center,
 		"",
-		hi.Render("race results"),
+		hi.Render(title),
 		"",
 		lipgloss.JoinVertical(lipgloss.Left, rows...),
 	)

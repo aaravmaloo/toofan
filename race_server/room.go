@@ -135,6 +135,52 @@ func (r *room) startCountdown() {
 			Duration:   r.duration,
 		},
 	})
+
+	if r.duration > 0 {
+		go func() {
+			time.Sleep(time.Duration(r.duration+5) * time.Second)
+			r.forceFinish()
+		}()
+	}
+}
+
+func (r *room) forceFinish() {
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
+		return
+	}
+	
+	// Only finish if not already finished by allDone in broadcastProgress
+	players := make([]PlayerProgress, 0, len(r.players))
+	alreadyFinished := true
+	for _, p := range r.players {
+		if !p.finished {
+			alreadyFinished = false
+		}
+		players = append(players, PlayerProgress{
+			Name:     p.name,
+			Progress: p.progress,
+			WPM:      p.wpm,
+			Finished: p.finished,
+		})
+	}
+	r.mu.Unlock()
+
+	if alreadyFinished {
+		return
+	}
+
+	// sort by progress desc
+	for i := 0; i < len(players); i++ {
+		for j := i + 1; j < len(players); j++ {
+			if players[j].Progress > players[i].Progress {
+				players[i], players[j] = players[j], players[i]
+			}
+		}
+	}
+
+	r.broadcast(ServerMsg{Type: "finish", Payload: FinishMsg{Placements: players}})
 }
 
 func (r *room) updateProgress(name string, progress float64, wpm float64) {
