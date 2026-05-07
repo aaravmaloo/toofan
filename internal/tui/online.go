@@ -325,7 +325,9 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 
 	case "start":
 		var payload game.StartPayload
-		json.Unmarshal(msg.Payload, &payload)
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			return m, nil
+		}
 		m.raceText = payload.Text
 		
 		// sync final settings
@@ -335,7 +337,9 @@ func (m model) handleRaceServerMsg(msg game.ServerMsg) (model, tea.Cmd) {
 		m.duration = payload.Duration
 		
 		m.game.Reset(m.mode, m.lang, m.difficulty)
-		m.game.SetText(payload.Text)
+		if payload.Text != "" {
+			m.game.SetText(payload.Text)
+		}
 		m.raceState = onlineRacing
 		m.pickingOnline = false
 
