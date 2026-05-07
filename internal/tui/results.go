@@ -125,10 +125,10 @@ func (m model) viewResults(p theme.Palette) string {
 	}
 
 	if m.gotNewPB {
-		pbLine := success.Bold(true).Render(fmt.Sprintf("★ NEW PERSONAL BEST!  %.0f → %.0f", m.pb, r.WPM))
+		pbLine := success.Bold(true).Render(fmt.Sprintf("★ NEW PB!  %.0f → %.0f", m.pb, r.WPM))
 		out = append(out, pbLine)
 	} else if m.pb > 0 {
-		out = append(out, dim.Render(fmt.Sprintf("personal best: %.0f", m.pb)))
+		out = append(out, dim.Render(fmt.Sprintf("pb: %.0f", m.pb)))
 	}
 
 	if len(m.bots) > 0 {
@@ -145,7 +145,7 @@ func (m model) viewResults(p theme.Palette) string {
 		out = append(out, "", m.viewOnlineResults(p))
 	}
 
-	out = append(out, "", dim.Render("press any key to restart · [e] practice errors"))
+
 
 	return lipgloss.JoinVertical(lipgloss.Center, out...)
 }
